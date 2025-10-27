@@ -11,4 +11,4 @@ After that run the command:
   make
   make run
 
-After that PSY-OS should start, if it doesn´t work it´s not my problem
+After that SproutOS should start, if it doesn´t work it´s not my problem

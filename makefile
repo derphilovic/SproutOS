@@ -1,18 +1,45 @@
-all: os.iso
+ASM=nasm
 
-os.iso: os.elf
-	mkdir -p isodir/boot/grub
-	cp os.elf isodir/boot/
-	echo 'menuentry "psy-os" { multiboot2 /boot/os.elf }' > isodir/boot/grub/grub.cfg
-	grub-mkrescue -o os.iso isodir --modules="multiboot2 normal part_msdos" --fonts= --themes= --locales= -v
+SRC_DIR=src
+BUILD_DIR=build
 
-os.elf: kernel.asm kernel.c
-	nasm -f elf64 kernel.asm -o kernel_asm.o
-	gcc -c kernel.c -o kernel_c.o -ffreestanding -nostdlib -mno-red-zone -mgeneral-regs-only -O0
-	ld -nostdlib -T linker.ld -o os.elf kernel_asm.o kernel_c.o
+.PHONY: all floppy_image kernel bootloader clean always
 
-run: os.iso
-	qemu-system-x86_64 -cdrom os.iso -vga std -serial stdio
+#
+# Floppy image
+#
+floppy_image: $(BUILD_DIR)/main_floppy.img
 
+$(BUILD_DIR)/main_floppy.img: bootloader kernel
+	dd if=/dev/zero of=$(BUILD_DIR)/main_floppy.img bs=512 count=2880
+	mkfs.fat -F 12 -n "NBOS" $(BUILD_DIR)/main_floppy.img
+	dd if=$(BUILD_DIR)/bootloader.bin of=$(BUILD_DIR)/main_floppy.img conv=notrunc
+	mcopy -i $(BUILD_DIR)/main_floppy.img $(BUILD_DIR)/kernel.bin "::kernel.bin"
+
+#
+# Bootloader
+#
+bootloader: $(BUILD_DIR)/bootloader.bin
+
+$(BUILD_DIR)/bootloader.bin: always
+	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -o $(BUILD_DIR)/bootloader.bin
+
+#
+# Kernel
+#
+kernel: $(BUILD_DIR)/kernel.bin
+
+$(BUILD_DIR)/kernel.bin: always
+	$(ASM) $(SRC_DIR)/kernel/main.asm -f bin -o $(BUILD_DIR)/kernel.bin
+
+#
+# Always
+#
+always:
+	mkdir -p $(BUILD_DIR)
+
+#
+# Clean
+#
 clean:
-	rm -rf *.o *.elf *.iso isodir
+	rm -rf $(BUILD_DIR)/*
